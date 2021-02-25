@@ -179,18 +179,24 @@
             where TDbSet : class, new() where TCollection : class, new()
         {
             var entityType = typeof(TDbSet);
-            var collectionType = typeof(ICollection);
+            var collectionType = typeof(TCollection);
 
-            var primaryKeys = collectionType.GetProperties().Where(pi => pi.HasAttribute<KeyAttribute>()).ToArray();
+            var primaryKeys = collectionType.GetProperties()
+                .Where(pi => pi.HasAttribute<KeyAttribute>())
+                .ToArray();
 
             var primaryKey = primaryKeys.First();
-            var foreignKey = entityType.GetProperties().First(pi => pi.HasAttribute<KeyAttribute>());
+            var foreignKey = entityType.GetProperties()
+                .First(pi => pi.HasAttribute<KeyAttribute>());
 
             var isManyToMany = primaryKeys.Length >= 2;
 
             if (isManyToMany)
             {
-                primaryKey = collectionType.GetProperties().First(pi => collectionType.GetProperty(pi.GetCustomAttribute<ForeignKeyAttribute>().Name).PropertyType == entityType);
+                primaryKey = collectionType.GetProperties()
+                    .First(pi => collectionType
+                                            .GetProperty(pi.GetCustomAttribute<ForeignKeyAttribute>().Name)
+                                            .PropertyType == entityType);
             }
 
             var navigationDbSet = (DbSet<TCollection>)this.dbSetProperties[collectionType].GetValue(this);
@@ -243,7 +249,7 @@
         }
 
         private IEnumerable<TEntity> LoadTableEntities<TEntity>()
-            where TEntity : class, new()
+            where TEntity : class
         {
             var table = typeof(TEntity);
 
@@ -259,7 +265,7 @@
 
         private string GetTableName(Type tableType)
         {
-            var tableName = ((TableAttribute)Attribute.GetCustomAttribute(tableType, typeof(TableAttribute))).Name;
+            var tableName = ((TableAttribute)Attribute.GetCustomAttribute(tableType, typeof(TableAttribute)))?.Name;
 
             if (tableName == null)
             {
@@ -282,7 +288,12 @@
 
             var dbColumns = this.connection.FetchColumnNames(tableName);
 
-            var columns = table.GetProperties().Where(pi => dbColumns.Contains(pi.Name) && AllowedSqlTypes.Contains(pi.PropertyType)).Select(pi => pi.Name).ToArray();
+            var columns = table.GetProperties()
+                .Where(pi => dbColumns.Contains(pi.Name) &&
+                !pi.HasAttribute<NotMappedAttribute>() &&
+                             AllowedSqlTypes.Contains(pi.PropertyType))
+                .Select(pi => pi.Name)
+                .ToArray(); ;
 
             return columns;
         }
