@@ -14,7 +14,8 @@
             using var db = new BookShopContext();
             DbInitializer.ResetDatabase(db);
 
-            Console.WriteLine(GetBooksByPrice(db));
+            int year = int.Parse(Console.ReadLine());
+            Console.WriteLine(GetBooksNotReleasedIn(db, year));
         }
 
         public static string GetBooksByAgeRestriction(BookShopContext context, string command)
@@ -65,10 +66,27 @@
 
             foreach (var book in books)
             {
-                sb.AppendLine($"{book.Title} - ${book.Price}");
+                sb.AppendLine($"{book.Title} - ${book.Price:F2}");
             }
 
             return sb.ToString().TrimEnd();
+        }
+
+        public static string GetBooksNotReleasedIn(BookShopContext context, int year)
+        {
+            var books = context.Books
+                .Where(x => x.ReleaseDate.Value.Year != year)
+                .Select(x => new
+                {
+                    x.BookId,
+                    x.Title
+                })
+                .OrderBy(x => x.BookId)
+                .ToList();
+
+            var result = string.Join(Environment.NewLine, books.Select(x => x.Title));
+
+            return result;
         }
     }
 }
