@@ -16,9 +16,8 @@
             using var db = new BookShopContext();
             DbInitializer.ResetDatabase(db);
 
-            var date = Console.ReadLine();
-
-            Console.WriteLine(GetBooksReleasedBefore(db, date));
+            var input = Console.ReadLine();
+            Console.WriteLine(GetBookTitlesContaining(db, input));
         }
 
         public static string GetBooksByAgeRestriction(BookShopContext context, string command)
@@ -132,5 +131,112 @@
 
             return result;
         }
+
+        public static string GetAuthorNamesEndingIn(BookShopContext context, string input)
+        {
+            var authors = context.Authors
+                .Where(x => EF.Functions.Like(x.FirstName, $"%{input}"))
+                .Select(x => new
+                {
+                    x.FirstName,
+                    x.LastName
+                })
+                .OrderBy(x => x.FirstName)
+                .ThenBy(x => x.LastName)
+                .ToList();
+
+            var result = string.Join(Environment.NewLine, authors.Select(a => $"{a.FirstName} {a.LastName}"));
+
+            return result;
+        }
+
+        public static string GetBookTitlesContaining(BookShopContext context, string input)
+        {
+            //var titles = context.Books.Select(x => x.Title.ToLower());
+
+            var books = context.Books
+                .Where(titles => EF.Functions.Like(titles.Title, $"%{input}%"))
+                .Select(x => new
+                {
+                    x.Title
+                })
+                .OrderBy(x => x.Title)
+                .ToList();
+
+            var result = string.Join(Environment.NewLine, books.Select(b => $"{b.Title}"));
+
+            return result;
+        }
+
+        public static string GetBooksByAuthor(BookShopContext context, string input)
+        {
+            var books = context.Books
+                .Include(x => x.Author)
+                .Where(x => EF.Functions.Like(x.Author.LastName, $"{input}%"))
+                .Select(x => new
+                {
+                    x.BookId,
+                    x.Title,
+                    x.Author.FirstName,
+                    x.Author.LastName
+                })
+                .OrderBy(x => x.BookId)
+                .ToList();
+
+            var result = string.Join(Environment.NewLine, books.Select(b => $"{b.Title} ({b.FirstName + " " + b.LastName})"));
+
+            return result;
+        }
+
+        public static int CountBooks(BookShopContext context, int lengthCheck)
+        {
+            var books = context.Books
+                .Where(x => x.Title.Length > lengthCheck)
+                .ToList();
+
+            var result = books.Count();
+
+            return result;
+        }
+
+        public static string CountCopiesByAuthor(BookShopContext context)
+        {
+            var autors = context.Authors
+                .Include(x => x.Books)
+                .Select(x => new
+                {
+                    x.FirstName,
+                    x.LastName,
+                    TotalCopies = x.Books.Sum(x => x.Copies),
+                })
+                .OrderByDescending(x => x.TotalCopies)
+                .ToList();
+
+            var result = string.Join(Environment.NewLine, autors.Select(x => $"{x.FirstName} {x.LastName} - {x.TotalCopies}"));
+
+            return result;
+        }
+
+        public static string GetTotalProfitByCategory(BookShopContext context)
+        {
+            var categories = context.Categories
+                .Select(x => new
+                {
+                    x.Name,
+                    Profit = x.CategoryBooks.Sum(b => b.Book.Price * b.Book.Copies)
+                })
+                .OrderByDescending(p => p.Profit)
+                .ThenBy(x => x.Name)
+                .ToList();
+
+            var result = string.Join(Environment.NewLine, categories.Select(c => $"{c.Name} ${c.Profit:F2}"));
+
+            return result;
+        }
+
+        //public static string GetMostRecentBooks(BookShopContext context)
+        //{
+
+        //}
     }
 }
