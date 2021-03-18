@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using ProductShop.Data;
 using ProductShop.DataTransferObjects;
@@ -16,22 +17,124 @@ namespace ProductShop
         public static void Main(string[] args)
         {
             var productShopContext = new ProductShopContext();
-            productShopContext.Database.EnsureDeleted();
-            productShopContext.Database.EnsureCreated();      
+            //productShopContext.Database.EnsureDeleted();
+            //productShopContext.Database.EnsureCreated();      
 
-            string usersJson = File.ReadAllText("../../../Datasets/users.json");
-            string productsJson = File.ReadAllText("../../../Datasets/products.json");
-            string categoriesJson = File.ReadAllText("../../../Datasets/categories.json");
-            string categoriesProductsJson = File.ReadAllText("../../../Datasets/categories-products.json");
+            //string usersJson = File.ReadAllText("../../../Datasets/users.json");
+            //string productsJson = File.ReadAllText("../../../Datasets/products.json");
+            //string categoriesJson = File.ReadAllText("../../../Datasets/categories.json");
+            //string categoriesProductsJson = File.ReadAllText("../../../Datasets/categories-products.json");
 
 
-            ImportUsers(productShopContext, usersJson);
-            ImportProducts(productShopContext, productsJson);
-            ImportCategories(productShopContext, categoriesJson);
-            var result = ImportCategoryProducts(productShopContext, categoriesProductsJson);
+            //ImportUsers(productShopContext, usersJson);
+            //ImportProducts(productShopContext, productsJson);
+            //ImportCategories(productShopContext, categoriesJson);
+            var result = GetUsersWithProducts(productShopContext);
             Console.WriteLine(result);
         }
 
+        public static string GetUsersWithProducts(ProductShopContext context)
+        {
+            var users = context.Users
+                .Include(x => x.ProductsSold)
+                .ToList()
+                .Where(u => u.ProductsSold.Any(x => x.BuyerId != null))
+                .Select(u => new
+                {
+                    firstName = u.FirstName,
+                    lastName = u.LastName,
+                    age = u.Age,
+                    soldProducts = new 
+                    {
+                        count = u.ProductsSold.Where(x => x.BuyerId != null).Count(),
+                        products = u.ProductsSold.Where(x => x.BuyerId != null).Select(p => new
+                        {
+                            name = p.Name,
+                            price = p.Price,
+                        })
+                    }
+                    
+                })
+                .OrderByDescending(x => x.soldProducts.products.Count())
+                .ToList();
+
+            var resultObject = new
+            {
+                usersCount = context.Users.Where(x => x.ProductsSold.Any(b => b.BuyerId != null)).Count(),
+                users = users
+            };
+
+            var jsonSerializerSettings = new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore
+            };
+
+            var resultJson = JsonConvert.SerializeObject(resultObject, Formatting.Indented, jsonSerializerSettings);
+
+            return resultJson;
+        }
+
+        public static string GetCategoriesByProductsCount(ProductShopContext context)
+        {
+            var categories = context.Categories         
+                .Select(c => new 
+                {
+                    category = c.Name,
+                    productsCount = c.CategoryProducts.Count,
+                    averagePrice = c.CategoryProducts.Average(p => p.Product.Price).ToString("F2"),
+                    totalRevenue = c.CategoryProducts.Sum( p => p.Product.Price).ToString("F2"),
+                })
+                .OrderByDescending(c => c.productsCount)
+                .ToList();
+
+            var result = JsonConvert.SerializeObject(categories, Formatting.Indented);
+
+            return result;
+
+        }
+        public static string GetSoldProducts(ProductShopContext context)
+        {
+            var users = context.Users
+                .Where(u => u.ProductsSold.Any(p => p.BuyerId != null))
+                .Select(u => new
+                {
+                    firstName = u.FirstName,
+                    lastName = u.LastName,
+                    soldProducts = u.ProductsSold.Where(p => p.BuyerId != null).Select(p => new
+                    {
+                        name = p.Name,
+                        price = p.Price,
+                        buyerFirstName = p.Buyer.FirstName,
+                        buyerLastName = p.Buyer.LastName
+                    })
+                    .ToList(),
+                })
+                .OrderBy(u => u.lastName)
+                .ThenBy(u => u.firstName)
+                .ToList();
+
+            var result = JsonConvert.SerializeObject(users, Formatting.Indented);
+
+            return result;
+        }
+        public static string GetProductsInRange(ProductShopContext context)
+        {
+            var products = context.Products
+                .Where(p => p.Price >= 500 && p.Price <= 1000)
+                .Select(p => new
+                {
+                    name = p.Name,
+                    price = p.Price,
+                    seller = p.Seller.FirstName + " " + p.Seller.LastName,
+                })
+                .OrderBy(x => x.price)
+                .ToList();
+
+            var result = JsonConvert.SerializeObject(products, Formatting.Indented);
+
+            return result;
+        }
+        
         public static string ImportCategoryProducts(ProductShopContext context, string inputJson)
         {
             InitializeAutoMapper();
